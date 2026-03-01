@@ -192,7 +192,7 @@ LLM_Benchmarking/
 
 ## 👀 See the difference (visualization)
 
-Open **`docs/llm_benchmark_viz_2d.html`** in a browser for an animated 2D comparison:
+**[▶ View interactive visualization](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Meghashyam-adimallam/-Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU/main/docs/llm_benchmark_viz_2d.html)** — or open `docs/llm_benchmark_viz_2d.html` locally in a browser for an animated 2D comparison:
 
 ![2D LLM benchmark visualization: Load Generator and three pipelines (Baseline, Batched, Dynamic)](docs/llm_benchmark_viz_2d.png)
 
