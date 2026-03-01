@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Benchmarking — Project Flow</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .sub { color: #7d8590; margin-bottom: 2rem; }
+    section { margin-bottom: 3rem; }
+    h2 { font-size: 1.1rem; color: #3fb950; margin-bottom: 1rem; }
+    .mermaid { background: #161b22; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+    .note { background: #21262d; border-left: 4px solid #3fb950; padding: 0.75rem 1rem; border-radius: 4px; margin-top: 1rem; font-size: 0.9rem; }
+    .hero { text-align: center; margin-bottom: 2rem; }
+    .hero img { max-width: 100%; border-radius: 8px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .outcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .outcome-box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; text-align: center; }
+    .outcome-box .num { font-size: 1.5rem; font-weight: 700; color: #3fb950; }
+    .outcome-box .label { font-size: 0.8rem; color: #7d8590; margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>LLM Benchmarking — What We Do &amp; What We Achieved</h1>
+  <p class="sub">See the flow below; the visuals show both how we run the benchmark and the results.</p>
+
+  <section>
+    <h2>What we achieved (at a glance)</h2>
+    <div class="mermaid">
+flowchart LR
+  subgraph Base["Baseline"]
+    B1["0.57 req/s"]
+    B2["8.3s p50"]
+  end
+  subgraph Dyn["Dynamic batching"]
+    D1["1.73 req/s"]
+    D2["2.2s p50"]
+  end
+  Base -->|"~3× throughput"| Dyn
+    </div>
+    <p class="note">Medium load (30 req, 5 conc, 64 tok). Dynamic batching gave ~3× more req/s and ~4× lower latency than baseline on the same GPU.</p>
+    <h3 style="font-size: 0.95rem; color: #7d8590; margin: 1.5rem 0 0.75rem;">Result by load</h3>
+    <div class="outcome-grid">
+      <div class="outcome-box"><span class="num">0.93 → 1.69</span><div class="label">Light: req/s (baseline → dynamic)</div></div>
+      <div class="outcome-box"><span class="num">0.57 → 1.73</span><div class="label">Medium: req/s</div></div>
+      <div class="outcome-box"><span class="num">0.41 → 1.11</span><div class="label">Heavy: req/s</div></div>
+      <div class="outcome-box"><span class="num">29 vs 20</span><div class="label">KV cache: tok/s (on vs off, 128 tok)</div></div>
+    </div>
+    <h3 style="font-size: 0.95rem; color: #7d8590; margin: 1.5rem 0 0.75rem;">Charts (from our run)</h3>
+    <div class="hero">
+      <img src="../report/benchmark_comparison.png" alt="Load comparison: throughput, latency, tok/s" width="800">
+      <p class="note" style="margin-top: 0.5rem;">Baseline vs Batched vs Dynamic across light / medium / heavy. Full report: <code>report/benchmark_report.html</code>.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>1. How we run it — two terminals + browser</h2>
+    <div class="mermaid">
+flowchart LR
+  subgraph T1["Terminal 1"]
+    U[uvicorn server]
+    U -->|"listens on :8000"| P[(Port 8000)]
+  end
+  subgraph T2["Terminal 2"]
+    L[load_generator.py]
+  end
+  subgraph B["Browser"]
+    W["localhost:8000"]
+  end
+  L -->|"50 requests"| P
+  W -->|"Try Generate / Health"| P
+  P -->|"responses"| L
+  P -->|"HTML / JSON"| W
+    </div>
+    <p class="note">Terminal 1 runs the server. Terminal 2 runs the load test. Browser opens the same server to try the API by hand.</p>
+  </section>
+
+  <section>
+    <h2>2. What happens on one request (API → GPU)</h2>
+    <div class="mermaid">
+sequenceDiagram
+  participant C as Client (browser or load gen)
+  participant S as Server (FastAPI)
+  participant M as Model (GPU)
+  C->>S: POST /generate { prompt, max_new_tokens }
+  S->>M: tokenize(prompt)
+  M-->>S: input_ids
+  S->>M: model.generate(...)
+  M-->>S: output token ids
+  S->>M: decode tokens
+  M-->>S: text
+  S->>C: { text, num_tokens }
+    </div>
+    <p class="note">Each request is tokenized → generated on GPU → decoded → sent back. The load generator measures how long this takes (latency) and how many we can do per second (req/s).</p>
+  </section>
+
+  <section>
+    <h2>3. Why dynamic wins — Baseline vs Batched vs Dynamic</h2>
+    <div class="mermaid">
+flowchart TB
+  subgraph Baseline["Baseline server (main.py)"]
+    B1[Request 1] --> G1[GPU]
+    B2[Request 2] --> G2[GPU]
+    B3[Request 3] --> G3[GPU]
+    G1 --> R1[Response 1]
+    G2 --> R2[Response 2]
+    G3 --> R3[Response 3]
+  end
+  subgraph Batched["Batched server (batched_server.py)"]
+    A1[Request 1]
+    A2[Request 2]
+    A3[Request 3]
+    A1 --> BATCH[One GPU batch]
+    A2 --> BATCH
+    A3 --> BATCH
+    BATCH --> O1[Response 1]
+    BATCH --> O2[Response 2]
+    BATCH --> O3[Response 3]
+  end
+    </div>
+    <p class="note">Baseline: one request = one GPU run. Batched: many requests are grouped into one GPU run, then split back into separate responses.</p>
+  </section>
+
+  <section>
+    <h2>4. How we switch servers (one at a time)</h2>
+    <div class="mermaid">
+flowchart LR
+  A[Start baseline server] --> B[Run load test in Terminal 2]
+  B --> C[Note results: req/s, p50, p95]
+  C --> D[Stop Terminal 1 - Ctrl+C]
+  D --> E[Start batched server in Terminal 1]
+  E --> F[Run same load test again in Terminal 2]
+  F --> G[Compare numbers]
+    </div>
+    <p class="note">We only stop Terminal 1 when we want to run the batched server. Same port 8000, so we must stop the old server first.</p>
+  </section>
+
+  <section>
+    <h2>5. What we measure → what we learn</h2>
+    <div class="mermaid">
+flowchart TB
+  subgraph Input["We run"]
+    L[Load generator: 50 requests, 20 concurrent]
+  end
+  subgraph Output["We get"]
+    O1[req_per_sec]
+    O2[p50_latency_sec]
+    O3[p95_latency_sec]
+    O4[tokens_per_sec]
+  end
+  subgraph Goal["We learn"]
+    G[Does batching improve req/s and latency?]
+  end
+  L --> Output
+  Output --> G
+    </div>
+    <p class="note">Same load test on baseline and batched server → compare the numbers → see how much batching helps (main goal).</p>
+  </section>
+
+  <section>
+    <h2>6. Benchmark setup (what we compare, where results go)</h2>
+
+    <h3 style="font-size: 0.95rem; color: #7d8590; margin: 1rem 0 0.5rem;">What we compare</h3>
+    <div class="mermaid">
+flowchart LR
+  subgraph LG["Load generator"]
+    GEN[same config]
+  end
+  subgraph Servers["Servers (run one at a time)"]
+    B[Baseline\nmain.py]
+    BT[Batched\nbatched_server.py]
+    D[Dynamic\ndynamic_server.py]
+  end
+  subgraph KV["Separate experiment"]
+    KVC[KV cache\n32 / 64 / 128 tok]
+  end
+  GEN --> B
+  GEN --> BT
+  GEN --> D
+    </div>
+
+    <h3 style="font-size: 0.95rem; color: #7d8590; margin: 1.5rem 0 0.5rem;">Load configs: light → medium → heavy</h3>
+    <div class="mermaid">
+flowchart LR
+  L[Light\n10 req, 2 conc\n32 tok] --> M[Medium\n30 req, 5 conc\n64 tok] --> H[Heavy\n30 req, 8 conc\n128 tok]
+    </div>
+
+    <h3 style="font-size: 0.95rem; color: #7d8590; margin: 1.5rem 0 0.5rem;">Run flow &amp; where results go</h3>
+    <div class="mermaid">
+flowchart TB
+  A[Start server\nbaseline / batched / dynamic] --> B[run_benchmark_suite.py\n--strategy ...]
+  B --> R1[(results/\nload_*_light_*.json etc.)]
+  C[kv_cache_test.py] --> R2[(results/\nkv_cache_*.json)]
+  R1 --> D[generate_charts.py]
+  R2 --> D
+  D --> E[(report/\nbenchmark_report.html)]
+    </div>
+
+    <p class="note">Run the suite once per strategy (baseline, then batched, then dynamic). Run KV cache once. Then generate charts from all results.</p>
+  </section>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</body>
+</html>

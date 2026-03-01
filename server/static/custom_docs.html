@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Benchmarking — API</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --surface: #151a22;
+      --border: #252d3a;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #3fb950;
+      --accent-dim: #238636;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 1.5rem;
+      margin: 0 0 0.25rem 0;
+      color: var(--text);
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0 0 1rem 0;
+      color: var(--accent);
+    }
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 0.35rem;
+    }
+    input, textarea, button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-dim); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .out {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 60px;
+    }
+    .out.empty { color: var(--muted); }
+    .out.err { border-color: var(--danger); color: var(--danger); }
+    .meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem; }
+    .health { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .health.ok { background: var(--accent-dim); color: #fff; }
+    .health.fail { background: var(--danger); color: #fff; }
+    .row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+    .row .field { flex: 1; min-width: 120px; }
+    .row button { flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>LLM Benchmarking — Baseline</h1>
+    <p class="sub">Single-request inference API. Try the endpoints below.</p>
+
+    <div class="card">
+      <h2>POST /generate</h2>
+      <div class="field">
+        <label>Prompt</label>
+        <textarea id="prompt" placeholder="e.g. Hello, how are you?">Hello, how are you?</textarea>
+      </div>
+      <div class="row">
+        <div class="field" style="max-width: 140px;">
+          <label>Max new tokens</label>
+          <input type="number" id="maxTokens" value="32" min="1" max="256">
+        </div>
+        <button type="button" id="btnGen">Generate</button>
+      </div>
+      <label>Response</label>
+      <div class="out empty" id="genOut">—</div>
+      <div class="meta" id="genMeta"></div>
+    </div>
+
+    <div class="card">
+      <h2>GET /health</h2>
+      <div class="row">
+        <button type="button" id="btnHealth">Check health</button>
+      </div>
+      <div class="out empty" id="healthOut">—</div>
+      <div class="meta" id="healthMeta"></div>
+    </div>
+
+    <div class="card">
+      <h2>Benchmark</h2>
+      <p style="color: var(--muted); font-size: 0.9rem; margin: 0;">
+        Full setup, load configs, and results (tables + charts): open <code>report/benchmark_report.html</code> in your browser. Flow: <code>docs/project_flow.html</code>.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const base = window.location.origin;
+
+    async function generate() {
+      const out = document.getElementById('genOut');
+      const meta = document.getElementById('genMeta');
+      const btn = document.getElementById('btnGen');
+      out.classList.remove('empty', 'err');
+      out.textContent = '…';
+      meta.textContent = '';
+      btn.disabled = true;
+      const start = performance.now();
+      try {
+        const res = await fetch(base + '/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: document.getElementById('prompt').value,
+            max_new_tokens: parseInt(document.getElementById('maxTokens').value, 10) || 32
+          })
+        });
+        const data = await res.json();
+        const elapsed = (performance.now() - start).toFixed(0);
+        if (!res.ok) {
+          out.classList.add('err');
+          out.textContent = JSON.stringify(data, null, 2);
+        } else {
+          out.textContent = data.text || '(empty)';
+          meta.textContent = data.num_tokens != null ? `${data.num_tokens} tokens · ${elapsed} ms` : `${elapsed} ms`;
+        }
+      } catch (e) {
+        out.classList.add('err');
+        out.textContent = e.message || String(e);
+      }
+      btn.disabled = false;
+    }
+
+    async function checkHealth() {
+      const out = document.getElementById('healthOut');
+      const meta = document.getElementById('healthMeta');
+      const btn = document.getElementById('btnHealth');
+      out.classList.remove('empty', 'err');
+      out.textContent = '…';
+      meta.textContent = '';
+      btn.disabled = true;
+      try {
+        const res = await fetch(base + '/health');
+        const data = await res.json();
+        if (!res.ok) throw new Error(JSON.stringify(data));
+        out.textContent = JSON.stringify(data, null, 2);
+        meta.innerHTML = '<span class="health ok">OK</span>';
+      } catch (e) {
+        out.classList.add('err');
+        out.textContent = e.message || String(e);
+        meta.innerHTML = '<span class="health fail">Failed</span>';
+      }
+      btn.disabled = false;
+    }
+
+    document.getElementById('btnGen').addEventListener('click', generate);
+    document.getElementById('btnHealth').addEventListener('click', checkHealth);
+  </script>
+</body>
+</html>

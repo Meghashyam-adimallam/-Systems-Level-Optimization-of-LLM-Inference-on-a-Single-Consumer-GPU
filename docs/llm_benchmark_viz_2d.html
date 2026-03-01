@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Benchmarking — Baseline vs Batched vs Dynamic</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 1.5rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #fff; }
+    .sub { color: #8b949e; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .viz-wrap { background: #161b22; border-radius: 12px; padding: 1.5rem; border: 1px solid #30363d; margin-bottom: 1rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-bottom: 1rem; }
+    .controls label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .controls input[type="range"] { width: 120px; accent-color: #3fb950; }
+    .controls .val { font-weight: 700; min-width: 2rem; color: #3fb950; }
+    .btn { padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; font-size: 0.9rem; }
+    .btn-start { background: #3fb950; color: #000; }
+    .btn-start:hover { background: #56d364; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .speed-group { display: flex; gap: 0.25rem; }
+    .speed-group button { padding: 0.4rem 0.75rem; border-radius: 4px; border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer; font-size: 0.8rem; }
+    .speed-group button.active { background: #3fb950; color: #000; border-color: #3fb950; }
+    .legend { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1rem; font-size: 0.8rem; color: #8b949e; }
+    .legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend .dot.baseline { background: #f85149; }
+    .legend .dot.batched { background: #58a6ff; }
+    .legend .dot.dynamic { background: #3fb950; }
+    .diff-callout { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; align-items: center; }
+    .diff-callout strong { color: #fff; font-size: 0.85rem; }
+    .diff-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #8b949e; }
+    .diff-item .pill { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem; }
+    .diff-item .pill.baseline { background: rgba(248,81,73,0.25); color: #f85149; }
+    .diff-item .pill.batched { background: rgba(88,166,255,0.25); color: #58a6ff; }
+    .diff-item .pill.dynamic { background: rgba(63,185,80,0.25); color: #3fb950; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-type="module">
+    const { useState, useRef, useEffect } = React;
+
+    const PIPELINE_HEIGHT = 100;
+    const BLOCK_WIDTH = 100;
+    const LOAD_GEN_CX = 80;
+    const LOAD_GEN_CY = 220;
+    const LOAD_GEN_R = 55;
+    const PIPELINE_START_X = 180;
+    const PIPELINE_Y = [80, 220, 360];
+    const DOT_R = 6;
+    const BATCH_SIZE = 4;
+    const DYNAMIC_WINDOW_MS = 400;
+
+    const LOAD_SIZE_MAX = 50;
+
+    function loadGeneratorEmitRate(loadSize, t) {
+      const base = 0.2 + (loadSize / LOAD_SIZE_MAX) * 0.8;
+      return base * (0.8 + 0.4 * Math.min(1, t / 8));
+    }
+
+    function BenchmarkViz() {
+      const [loadSize, setLoadSize] = useState(10);
+      const [speed, setSpeed] = useState(1);
+      const [running, setRunning] = useState(false);
+      const [dots, setDots] = useState({ baseline: [], batched: [], dynamic: [] });
+      const baselineDots = dots.baseline;
+      const batchedDots = dots.batched;
+      const dynamicDots = dots.dynamic;
+      const dotsRef = useRef(dots);
+      dotsRef.current = dots;
+      const nextId = useRef(1);
+      const emitAccum = useRef(0);
+      const lastTime = useRef(0);
+      const speedMult = [0.5, 1, 2][speed];
+
+      useEffect(() => {
+        if (!running) return;
+        let raf;
+        function tick(now) {
+          const dt = Math.min(0.05, (now - lastTime.current) / 1000) * speedMult;
+          lastTime.current = now;
+          let b = (dotsRef.current.baseline || []).map(d => ({ ...d }));
+          let bt = (dotsRef.current.batched || []).map(d => ({ ...d }));
+          let d = (dotsRef.current.dynamic || []).map(d => ({ ...d }));
+
+          emitAccum.current += dt * loadGeneratorEmitRate(loadSize, now / 1000);
+          while (emitAccum.current >= 1) {
+            emitAccum.current -= 1;
+            const id = nextId.current++;
+            const baseX = PIPELINE_START_X + 30;
+            b.push({ id, x: baseX, phase: 'queue', progress: 0 });
+            bt.push({ id, x: baseX, phase: 'queue', progress: 0, batchId: null });
+            d.push({ id, x: baseX, phase: 'queue', progress: 0, arrivedAt: now, batchId: null });
+          }
+
+          const seg = phase => (phase === 'kv' ? 0 : phase === 'gpu' ? 1 : 2);
+          const xFor = (phase, progress) => PIPELINE_START_X + 40 + seg(phase) * BLOCK_WIDTH + Math.min(1, progress) * (BLOCK_WIDTH - 20);
+
+          const bQueue = b.filter(x => x.phase === 'queue');
+          const bProc = b.find(x => x.phase === 'kv' || x.phase === 'gpu' || x.phase === 'result');
+          if (bProc) {
+            const idx = b.findIndex(x => x.id === bProc.id);
+            let progress = b[idx].progress + dt * 0.9;
+            let phase = b[idx].phase;
+            if (phase === 'kv' && progress >= 1) { phase = 'gpu'; progress = 0; }
+            else if (phase === 'gpu' && progress >= 1) { phase = 'result'; progress = 0; }
+            else if (phase === 'result' && progress >= 1) { b[idx].phase = 'done'; }
+            if (b[idx].phase !== 'done') {
+              b[idx].phase = phase; b[idx].progress = Math.min(1, progress); b[idx].x = xFor(phase, progress);
+            }
+          } else if (bQueue.length > 0) {
+            const idx = b.findIndex(x => x.id === bQueue[0].id);
+            b[idx].phase = 'kv'; b[idx].progress = 0; b[idx].x = PIPELINE_START_X + 40;
+          }
+          b = b.filter(x => x.phase !== 'done');
+
+          const btQueue = bt.filter(x => x.phase === 'queue');
+          const btInFlight = bt.filter(x => x.phase === 'kv' || x.phase === 'gpu' || x.phase === 'result');
+          if (btInFlight.length > 0) {
+            const batchIds = [...new Set(btInFlight.map(x => x.batchId))].filter(Boolean);
+            batchIds.forEach(bid => {
+              const batch = bt.filter(x => x.batchId === bid && x.phase !== 'done');
+              if (batch.length === 0) return;
+              const p = batch[0];
+              const idx = bt.findIndex(x => x.id === p.id);
+              let progress = bt[idx].progress + dt * 0.85;
+              let phase = bt[idx].phase;
+              if (phase === 'kv' && progress >= 1) { phase = 'gpu'; progress = 0; }
+              else if (phase === 'gpu' && progress >= 1) { phase = 'result'; progress = 0; }
+              else if (phase === 'result' && progress >= 1) {
+                bt.forEach((x, i) => { if (x.batchId === bid) bt[i] = { ...x, phase: 'done' }; });
+                return;
+              }
+              const xVal = xFor(phase, Math.min(1, progress));
+              bt.forEach((x, i) => { if (x.batchId === bid) bt[i] = { ...x, phase, progress: Math.min(1, progress), x: xVal }; });
+            });
+          } else if (btQueue.length >= BATCH_SIZE) {
+            const batch = btQueue.slice(0, BATCH_SIZE);
+            const batchId = `b${now}`;
+            batch.forEach(bd => {
+              const i = bt.findIndex(x => x.id === bd.id);
+              if (i >= 0) bt[i] = { ...bt[i], phase: 'kv', progress: 0, batchId, x: PIPELINE_START_X + 40 };
+            });
+          }
+          bt = bt.filter(x => x.phase !== 'done');
+
+          const dQueue = d.filter(x => x.phase === 'queue').sort((a, b) => a.arrivedAt - b.arrivedAt);
+          const dInFlight = d.filter(x => x.phase === 'kv' || x.phase === 'gpu' || x.phase === 'result');
+          if (dInFlight.length > 0) {
+            const batchIds = [...new Set(dInFlight.map(x => x.batchId))].filter(Boolean);
+            batchIds.forEach(bid => {
+              const batch = d.filter(x => x.batchId === bid && x.phase !== 'done');
+              if (batch.length === 0) return;
+              const p = batch[0];
+              const idx = d.findIndex(x => x.id === p.id);
+              let progress = d[idx].progress + dt * 0.9;
+              let phase = d[idx].phase;
+              if (phase === 'kv' && progress >= 1) { phase = 'gpu'; progress = 0; }
+              else if (phase === 'gpu' && progress >= 1) { phase = 'result'; progress = 0; }
+              else if (phase === 'result' && progress >= 1) {
+                d.forEach((x, i) => { if (x.batchId === bid) d[i] = { ...x, phase: 'done' }; });
+                return;
+              }
+              const xVal = xFor(phase, Math.min(1, progress));
+              d.forEach((x, i) => { if (x.batchId === bid) d[i] = { ...x, phase, progress: Math.min(1, progress), x: xVal }; });
+            });
+          } else if (dQueue.length > 0) {
+            let group = [dQueue[0]];
+            for (let i = 1; i < dQueue.length && group.length < 4; i++) {
+              if (dQueue[i].arrivedAt - dQueue[0].arrivedAt < DYNAMIC_WINDOW_MS) group.push(dQueue[i]);
+              else break;
+            }
+            const batchId = `d${now}`;
+            group.forEach(gd => {
+              const i = d.findIndex(x => x.id === gd.id);
+              if (i >= 0) d[i] = { ...d[i], phase: 'kv', progress: 0, batchId, x: PIPELINE_START_X + 40 };
+            });
+          }
+          d = d.filter(x => x.phase !== 'done');
+
+          setDots({ baseline: b, batched: bt, dynamic: d });
+          raf = requestAnimationFrame(tick);
+        }
+        lastTime.current = performance.now();
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+      }, [running, loadSize, speed]);
+
+      const gpuUsage = (dots, type) => {
+        const inGpu = dots.filter(d => d.phase === 'gpu');
+        if (type === 'baseline') return inGpu.length > 0 ? 0.25 : 0;
+        if (type === 'batched') return Math.min(1, inGpu.length / 4);
+        return Math.min(1, inGpu.length / 4);
+      };
+
+      const pipelineSubtitles = { baseline: '1 at a time · low GPU', batched: '4 per batch · high GPU', dynamic: '1–4 adaptive · medium GPU' };
+
+      const renderPipeline = (label, y, theme, dots, type) => {
+        const colors = { baseline: '#f85149', batched: '#58a6ff', dynamic: '#3fb950' };
+        const color = colors[type];
+        const width = 3 * BLOCK_WIDTH + 120;
+        const arrowX = [PIPELINE_START_X + BLOCK_WIDTH + 20, PIPELINE_START_X + 2 * BLOCK_WIDTH + 20];
+        const blockX = [PIPELINE_START_X + 40, PIPELINE_START_X + BLOCK_WIDTH + 40, PIPELINE_START_X + 2 * BLOCK_WIDTH + 40];
+        const usage = gpuUsage(dots, type);
+        const gpuH = 44 * (1 + 0.7 * usage);
+        const gpuW = BLOCK_WIDTH - 20;
+        const gpuY = y - gpuH / 2;
+        const gpuX = blockX[1];
+        const byBatch = {};
+        dots.forEach(d => {
+          const k = d.batchId || d.id;
+          if (!byBatch[k]) byBatch[k] = [];
+          byBatch[k].push(d);
+        });
+        let dotEls = [];
+        Object.values(byBatch).forEach((batch, bi) => {
+          const first = batch[0];
+          const x = first.x || PIPELINE_START_X;
+          batch.forEach((d, i) => {
+            const offset = type === 'baseline' ? 0 : type === 'batched' ? (i - batch.length / 2) * 8 : (i - batch.length / 2) * 6;
+            dotEls.push(<circle key={`${type}-${d.id}-${i}`} cx={x + offset} cy={y + (type !== 'baseline' ? (i - batch.length / 2) * 12 : 0)} r={DOT_R} fill={color} opacity={d.phase === 'done' ? 0.4 : 1} />);
+          });
+        });
+
+        return (
+          <g>
+            <rect x={PIPELINE_START_X} y={y - PIPELINE_HEIGHT/2 + 10} width={width} height={PIPELINE_HEIGHT - 20} rx={8} fill={color} opacity={0.12} stroke={color} strokeWidth={2} />
+            <text x={PIPELINE_START_X - 10} y={y - 2} textAnchor="end" fill="#e6edf3" fontSize={14} fontWeight="700">{label}</text>
+            <text x={PIPELINE_START_X - 10} y={y + 14} textAnchor="end" fill={color} fontSize={10} fontWeight="500">{pipelineSubtitles[type]}</text>
+            <rect x={blockX[0]} y={y - 28} width={BLOCK_WIDTH - 20} height={44} rx={6} fill="#21262d" stroke={color} strokeWidth={1.5} />
+            <text x={blockX[0] + (BLOCK_WIDTH - 20) / 2} y={y + 4} textAnchor="middle" fill="#8b949e" fontSize={11}>KV Cache</text>
+            <path d={`M ${blockX[0] + BLOCK_WIDTH - 20} ${y} L ${arrowX[0] - 15} ${y}`} stroke={color} strokeWidth={2} fill="none" markerEnd="url(#arrow)" />
+            <polygon points={`${arrowX[0]},${y} ${arrowX[0] - 10},${y - 5} ${arrowX[0] - 10},${y + 5}`} fill={color} />
+            <rect x={gpuX} y={gpuY} width={gpuW} height={gpuH} rx={6} fill="#21262d" stroke={color} strokeWidth={1.5} />
+            <text x={blockX[1] + (BLOCK_WIDTH - 20) / 2} y={y + 4} textAnchor="middle" fill="#8b949e" fontSize={11}>GPU</text>
+            <path d={`M ${blockX[1] + BLOCK_WIDTH - 20} ${y} L ${arrowX[1] - 15} ${y}`} stroke={color} strokeWidth={2} fill="none" />
+            <polygon points={`${arrowX[1]},${y} ${arrowX[1] - 10},${y - 5} ${arrowX[1] - 10},${y + 5}`} fill={color} />
+            <rect x={blockX[2]} y={y - 28} width={BLOCK_WIDTH - 20} height={44} rx={6} fill="#21262d" stroke={color} strokeWidth={1.5} />
+            <text x={blockX[2] + (BLOCK_WIDTH - 20) / 2} y={y + 4} textAnchor="middle" fill="#8b949e" fontSize={11}>Result</text>
+            {dotEls}
+          </g>
+        );
+      };
+
+      return (
+        <>
+          <h1>LLM Benchmarking — Baseline vs Batched vs Dynamic</h1>
+          <p className="sub">2D animated comparison: one Load Generator feeds three pipelines. Start the simulation to see sequential vs batched vs adaptive processing.</p>
+          <div className="diff-callout">
+            <strong>The difference: </strong>
+            <span className="diff-item"><span className="pill baseline">Baseline</span> 1 request at a time → small GPU</span>
+            <span className="diff-item"><span className="pill batched">Batched</span> 4 together → large GPU</span>
+            <span className="diff-item"><span className="pill dynamic">Dynamic</span> 1–4 by timing → GPU varies</span>
+          </div>
+          <div className="viz-wrap">
+            <div className="controls">
+              <button className="btn btn-start" onClick={() => setRunning(true)} disabled={running}>Start Simulation</button>
+              <button className="btn" style={{ background: '#21262d', color: '#e6edf3', border: '1px solid #30363d' }} onClick={() => { setRunning(false); setDots({ baseline: [], batched: [], dynamic: [] }); nextId.current = 1; emitAccum.current = 0; }}>Reset</button>
+              <label>Load Size (1–{LOAD_SIZE_MAX}): <span className="val">{loadSize}</span><input type="range" min={1} max={LOAD_SIZE_MAX} value={loadSize} onChange={e => setLoadSize(+e.target.value)} /></label>
+              <div className="speed-group">
+                <span style={{ marginRight: 4 }}>Speed:</span>
+                {['Slow', 'Medium', 'Fast'].map((s, i) => (<button key={s} className={speed === i ? 'active' : ''} onClick={() => setSpeed(i)}>{s}</button>))}
+              </div>
+            </div>
+            <svg width="700" height="440" style={{ display: 'block', margin: '0 auto' }}>
+              <defs><marker id="arrow" markerWidth={8} markerHeight={8} refX={6} refY={3} orient="auto"><polygon points="0 0, 6 3, 0 6" fill="#8b949e" /></marker></defs>
+              <circle cx={LOAD_GEN_CX} cy={LOAD_GEN_CY} r={LOAD_GEN_R} fill="#21262d" stroke="#58a6ff" strokeWidth={2} />
+              <text x={LOAD_GEN_CX} y={LOAD_GEN_CY - 8} textAnchor="middle" fill="#e6edf3" fontSize={12} fontWeight="700">Load</text>
+              <text x={LOAD_GEN_CX} y={LOAD_GEN_CY + 8} textAnchor="middle" fill="#8b949e" fontSize={10}>Generator</text>
+              {[0, 1, 2].map(i => (
+                <line key={i} x1={LOAD_GEN_CX + LOAD_GEN_R} y1={LOAD_GEN_CY} x2={PIPELINE_START_X - 20} y2={PIPELINE_Y[i]} stroke="#30363d" strokeWidth={1} strokeDasharray="4 4" />
+              ))}
+              {renderPipeline('Baseline', PIPELINE_Y[0], '#f85149', baselineDots, 'baseline')}
+              {renderPipeline('Batched', PIPELINE_Y[1], '#58a6ff', batchedDots, 'batched')}
+              {renderPipeline('Dynamic', PIPELINE_Y[2], '#3fb950', dynamicDots, 'dynamic')}
+              {baselineDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
+                <circle key={`bq-${d.id}`} cx={LOAD_GEN_CX + 30 + i * 10} cy={PIPELINE_Y[0] + 25} r={5} fill="#f85149" opacity={0.9} />
+              ))}
+              {batchedDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
+                <circle key={`bq2-${d.id}`} cx={LOAD_GEN_CX + 30 + (i % 4) * 10} cy={PIPELINE_Y[1] + 25 + Math.floor(i / 4) * 10} r={5} fill="#58a6ff" opacity={0.9} />
+              ))}
+              {dynamicDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
+                <circle key={`dq-${d.id}`} cx={LOAD_GEN_CX + 30 + i * 10} cy={PIPELINE_Y[2] + 25} r={5} fill="#3fb950" opacity={0.9} />
+              ))}
+            </svg>
+            <div className="legend">
+              <span><span className="dot baseline" /> Baseline: 1 at a time (small GPU block)</span>
+              <span><span className="dot batched" /> Batched: 4 per batch (large GPU block)</span>
+              <span><span className="dot dynamic" /> Dynamic: 1–4 adaptive (GPU block varies)</span>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<BenchmarkViz />);
+  </script>
+</body>
+</html>
