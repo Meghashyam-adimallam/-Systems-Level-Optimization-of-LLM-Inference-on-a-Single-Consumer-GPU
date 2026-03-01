@@ -6,7 +6,7 @@ A hands-on lab for optimizing Large Language Model inference on a single consume
 
 ---
 
-## Problem Statement
+## 📋 Problem Statement
 
 *How much performance can we extract from a single 8 GB consumer GPU for LLM inference purely through systems optimization, without changing the model architecture?*
 
@@ -18,7 +18,7 @@ We define and measure:
 
 ---
 
-## Key Contributions
+## ✨ Key Contributions
 
 - Built a **reproducible baseline** LLM inference server (single-request).
 - Implemented **fixed-size batching** and **async dynamic batching** with a configurable time window.
@@ -28,7 +28,7 @@ We define and measure:
 
 ---
 
-## Summary Results
+## 📊 Summary Results
 
 Representative numbers (medium load: 30 req, concurrency 5, 64 tokens). Run `report/generate_charts.py` for full tables and charts.
 
@@ -42,11 +42,18 @@ Dynamic batching gives the best throughput and latency in our experiments; batch
 
 ---
 
-## Why This Matters
+## 💡 Why This Matters
 
 Deploying LLMs in production is dominated by one cost: **GPU time**. Out-of-the-box inference often gives ~0.2–0.5 requests/second on a 2–3B model. The same hardware can reach **2+ req/s** with batching, scheduling, and cache-aware design — an **8–10×** gain that translates directly into lower infrastructure cost per user.
 
-**Cost framing:** If a cloud GPU costs **$1.00/hour** and baseline serves 0.5 req/s, 1000 requests take ~33 minutes → **~$0.55 per 1000 requests**. At 1.7 req/s (dynamic batching), 1000 requests take ~10 minutes → **~$0.17 per 1000 requests**. Systems optimization directly reduces cost per request.
+**Cost framing:** If a cloud GPU costs **$1.00/hour**:
+
+| Scenario              | Throughput | Time for 1000 req | Cost per 1000 requests |
+|-----------------------|------------|-------------------|-------------------------|
+| Baseline              | 0.5 req/s  | ~33 min           | **~$0.55**              |
+| Dynamic batching      | 1.7 req/s  | ~10 min           | **~$0.17**              |
+
+Systems optimization directly reduces cost per request.
 
 This repo is a complete, reproducible lab: baseline server, static and dynamic batching, KV-cache experiments, a custom load generator, and a benchmark report with before/after numbers.
 
@@ -71,13 +78,13 @@ flowchart LR
 
 ---
 
-## Authors
+## 👥 Authors
 
 **Meghashyam** · **Achuth Reddy**
 
 ---
 
-## Overview
+## 📌 Overview
 
 - **Goal:** Increase throughput (req/s), improve latency (p50/p95), and use GPU memory efficiently — without changing the model.
 - **Stack:** HuggingFace Transformers, FastAPI, asyncio, custom async load generator.
@@ -104,7 +111,7 @@ flowchart LR
 
 ---
 
-## Experimental Setup
+## 🔬 Experimental Setup
 
 | Item | Value |
 |------|--------|
@@ -117,7 +124,7 @@ flowchart LR
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Requirements
 
@@ -149,13 +156,13 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 LLM_Benchmarking/
 ├── docs/
 │   ├── llm_benchmark_viz_2d.html   # 2D viz: Baseline vs Batched vs Dynamic
-│   └── project_flow_3d.html       # 3D pipeline visualization
+│   └── project_flow.html           # Project flow diagram
 ├── scripts/
 │   ├── run_benchmark_suite.py     # Full suite (baseline, batched, dynamic)
 │   ├── baseline_test.py           # Single-request baseline → JSON metrics
@@ -176,7 +183,7 @@ LLM_Benchmarking/
 
 ---
 
-## See the difference (visualization)
+## 👀 See the difference (visualization)
 
 Open **`docs/llm_benchmark_viz_2d.html`** in a browser for an animated 2D comparison:
 
@@ -188,7 +195,7 @@ Open **`docs/llm_benchmark_viz_2d.html`** in a browser for an animated 2D compar
 
 ---
 
-## How to Run
+## ▶️ How to Run
 
 **1. Baseline (single request)** — writes metrics to `results/`:
 
@@ -240,7 +247,7 @@ python report/generate_charts.py
 
 ---
 
-## Reproducing Results
+## 🔄 Reproducing Results
 
 1. Use the same model and `max_new_tokens` for all runs.
 2. Note GPU and system load (e.g. `nvidia-smi`); re-run if the machine was busy.
@@ -249,7 +256,7 @@ python report/generate_charts.py
 
 ---
 
-## Results
+## 📈 Results
 
 Generate the charts with `python report/generate_charts.py` (requires benchmark JSON in `results/`). Then the following figures appear in the report:
 
@@ -269,7 +276,7 @@ For a one-page visual report with both charts and tables, open **`report/benchma
 
 ---
 
-## Limitations
+## ⚠️ Limitations
 
 - Only tested on **2–3B parameter models** (e.g. TinyLlama-1.1B); results may differ for 7B+.
 - **No multi-GPU scaling**; single GPU only.
@@ -278,7 +285,7 @@ For a one-page visual report with both charts and tables, open **`report/benchma
 
 ---
 
-## Contributors
+## 🤝 Contributors
 
 **Meghashyam** — Baseline and static batching servers, KV cache experiment, chart generation.  
 **Achuth Reddy** — Load generator, dynamic batching server, final benchmark report.

@@ -1,0 +1,12 @@
+Replace YOUR_GITHUB_USERNAME with your actual GitHub username, then run in PowerShell:
+
+cd c:\Users\megha\LLM_Benchmarking
+git remote set-url origin https://github.com/YOUR_GITHUB_USERNAME/Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU.git
+git push -u origin main
+
+Example if your username is "johndoe":
+git remote set-url origin https://github.com/johndoe/Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU.git
+git push -u origin main
+
+When prompted for password, use a Personal Access Token (not your GitHub password).
+Create one at: https://github.com/settings/tokens
