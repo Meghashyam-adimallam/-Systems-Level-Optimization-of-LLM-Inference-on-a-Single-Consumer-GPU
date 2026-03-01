@@ -313,13 +313,13 @@
               {renderPipeline('Batched', PIPELINE_Y[1], '#58a6ff', batchedDots, 'batched')}
               {renderPipeline('Dynamic', PIPELINE_Y[2], '#3fb950', dynamicDots, 'dynamic')}
               {baselineDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
-                <circle key={`bq-${d.id}`} cx={LOAD_GEN_CX + 30 + i * 10} cy={PIPELINE_Y[0] + 25} r={5} fill="#f85149" opacity={0.9} />
+                <circle key={`bq-${d.id}`} cx={LOAD_GEN_CX + 15 + i * 14} cy={PIPELINE_Y[0] + 25} r={5} fill="#f85149" opacity={0.9} />
               ))}
               {batchedDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
-                <circle key={`bq2-${d.id}`} cx={LOAD_GEN_CX + 30 + (i % 4) * 10} cy={PIPELINE_Y[1] + 25 + Math.floor(i / 4) * 10} r={5} fill="#58a6ff" opacity={0.9} />
+                <circle key={`bq2-${d.id}`} cx={LOAD_GEN_CX + 15 + (i % 4) * 14} cy={PIPELINE_Y[1] + 25 + Math.floor(i / 4) * 14} r={5} fill="#58a6ff" opacity={0.9} />
               ))}
               {dynamicDots.filter(d => d.phase === 'queue').slice(0, 12).map((d, i) => (
-                <circle key={`dq-${d.id}`} cx={LOAD_GEN_CX + 30 + i * 10} cy={PIPELINE_Y[2] + 25} r={5} fill="#3fb950" opacity={0.9} />
+                <circle key={`dq-${d.id}`} cx={LOAD_GEN_CX + 15 + i * 14} cy={PIPELINE_Y[2] + 25} r={5} fill="#3fb950" opacity={0.9} />
               ))}
             </svg>
             <div className="legend">
