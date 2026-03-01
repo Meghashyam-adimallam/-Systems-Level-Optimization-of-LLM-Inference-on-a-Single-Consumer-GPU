@@ -80,7 +80,7 @@ flowchart LR
 
 ## 👥 Authors
 
-**Meghashyam** · **Achuth Reddy**
+**[Meghashyam](https://github.com/Meghashyam-adimallam)** · **[Achuth Reddy](https://github.com/achuthreddy-16)**
 
 ---
 
@@ -287,7 +287,7 @@ For a one-page visual report with both charts and tables, open **`report/benchma
 
 ## 🤝 Contributors
 
-**Meghashyam** — Baseline and static batching servers, KV cache experiment, chart generation.  
-**Achuth Reddy** — Load generator, dynamic batching server, final benchmark report.
+**[Meghashyam](https://github.com/Meghashyam-adimallam)** — Baseline and static batching servers, KV cache experiment, chart generation.  
+**[Achuth Reddy](https://github.com/achuthreddy-16)** — Load generator, dynamic batching server, final benchmark report.
 
-Work was shared equally between both. The final result reflects these contributions and was delivered jointly.
+Work was shared equally between both. The final result reflects these contributions and was delivered jointly. Both are collaborators on [this repository](https://github.com/Meghashyam-adimallam/-Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU).
