@@ -32,11 +32,11 @@ We define and measure:
 
 Representative numbers (medium load: 30 req, concurrency 5, 64 tokens). Run `report/generate_charts.py` for full tables and charts.
 
-| Strategy | Req/s | p50 Latency | p95 Latency | GPU Util |
-|----------|-------|-------------|-------------|----------|
-| Baseline | 0.57  | 8.3 s       | ~39 s       | ~25%     |
-| Batched  | 0.71  | 6.2 s       | ~12 s       | ~60%     |
-| Dynamic  | **1.73** | **2.2 s** | ~23 s       | ~75%     |
+| Strategy | Req/s   | p50 Latency | p95 Latency | GPU Util |
+|----------|---------|-------------|-------------|----------|
+| Baseline | 0.57    | 8.3 s       | ~39 s       | ~25%     |
+| Batched  | 0.71    | 6.2 s       | ~12 s       | ~60%     |
+| Dynamic  | **1.73** | **2.2 s**   | ~23 s       | ~75%     |
 
 Dynamic batching gives the best throughput and latency in our experiments; batched improves over baseline but can suffer under heavy load due to padding.
 
@@ -48,10 +48,10 @@ Deploying LLMs in production is dominated by one cost: **GPU time**. Out-of-the-
 
 **Cost framing:** If a cloud GPU costs **$1.00/hour**:
 
-| Scenario              | Throughput | Time for 1000 req | Cost per 1000 requests |
-|-----------------------|------------|-------------------|-------------------------|
-| Baseline              | 0.5 req/s  | ~33 min           | **~$0.55**              |
-| Dynamic batching      | 1.7 req/s  | ~10 min           | **~$0.17**              |
+| Scenario         | Throughput | Time for 1000 req | Cost per 1000 requests |
+|------------------|------------|-------------------|-------------------------|
+| Baseline         | 0.5 req/s  | ~33 min           | **~$0.55**              |
+| Dynamic batching | 1.7 req/s  | ~10 min           | **~$0.17**              |
 
 Systems optimization directly reduces cost per request.
 
@@ -101,26 +101,26 @@ flowchart LR
 ![Hugging Face](https://img.shields.io/badge/Transformers-4.35+-FFD21E?style=flat-square&logo=huggingface&logoColor=black)
 ![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
-| Category        | Tools |
-|-----------------|--------|
-| **Backend**     | Python, FastAPI, Uvicorn |
+| Category          | Tools                                      |
+|-------------------|--------------------------------------------|
+| **Backend**       | Python, FastAPI, Uvicorn                    |
 | **ML / Inference** | PyTorch, HuggingFace Transformers, Accelerate |
-| **Async / HTTP**   | asyncio, httpx |
-| **Data & viz** | NumPy, Pandas, Matplotlib |
-| **Dev / ops**  | Git |
+| **Async / HTTP**  | asyncio, httpx                             |
+| **Data & viz**    | NumPy, Pandas, Matplotlib                  |
+| **Dev / ops**     | Git                                        |
 
 ---
 
 ## 🔬 Experimental Setup
 
-| Item | Value |
-|------|--------|
-| **Model** | TinyLlama-1.1B (1.1B parameters) |
-| **GPU** | NVIDIA RTX 4060 Laptop GPU, 8 GB VRAM |
-| **CUDA** | 12.x (PyTorch with CUDA) |
-| **Batch sizes tested** | Baseline: 1; Batched: 4 (fixed); Dynamic: 1–4 (20 ms window) |
-| **Warmup runs excluded** | Yes (first requests not counted in latency percentiles where applicable) |
-| **Repeated trials** | Multiple load configs (light / medium / heavy); single run per config in report; re-run `generate_charts.py` for reproducibility |
+| Item                   | Value                                                                                      |
+|------------------------|--------------------------------------------------------------------------------------------|
+| **Model**              | TinyLlama-1.1B (1.1B parameters)                                                           |
+| **GPU**                | NVIDIA RTX 4060 Laptop GPU, 8 GB VRAM                                                      |
+| **CUDA**               | 12.x (PyTorch with CUDA)                                                                   |
+| **Batch sizes tested** | Baseline: 1; Batched: 4 (fixed); Dynamic: 1–4 (20 ms window)                                |
+| **Warmup runs excluded**| Yes (first requests not counted in latency percentiles where applicable)                   |
+| **Repeated trials**    | Multiple load configs (light / medium / heavy); single run per config in report; re-run `generate_charts.py` for reproducibility |
 
 ---
 
@@ -162,22 +162,22 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 LLM_Benchmarking/
 ├── docs/
 │   ├── llm_benchmark_viz_2d.html   # 2D viz: Baseline vs Batched vs Dynamic
-│   └── project_flow.html           # Project flow diagram
+│   └── project_flow.html          # Project flow diagram
 ├── scripts/
 │   ├── run_benchmark_suite.py     # Full suite (baseline, batched, dynamic)
-│   ├── baseline_test.py           # Single-request baseline → JSON metrics
-│   └── kv_cache_test.py           # use_cache=True vs False
+│   ├── baseline_test.py          # Single-request baseline → JSON metrics
+│   └── kv_cache_test.py          # use_cache=True vs False
 ├── server/
-│   ├── main.py                    # Baseline single-request API
-│   ├── batched_server.py          # Static batching
-│   └── dynamic_server.py          # Async queue, 20ms batching window
+│   ├── main.py                   # Baseline single-request API
+│   ├── batched_server.py         # Static batching
+│   └── dynamic_server.py        # Async queue, 20ms batching window
 ├── benchmark/
-│   └── load_generator.py          # Concurrent requests, p50/p95, req/s
-├── results/                       # JSON outputs per run
+│   └── load_generator.py         # Concurrent requests, p50/p95, req/s
+├── results/                      # JSON outputs per run
 ├── report/
-│   ├── generate_charts.py         # Matplotlib charts from results
-│   ├── final_report.md            # Benchmark report and conclusions
-│   └── benchmark_report.html      # HTML report
+│   ├── generate_charts.py        # Matplotlib charts from results
+│   ├── final_report.md           # Benchmark report and conclusions
+│   └── benchmark_report.html    # HTML report
 └── requirements.txt
 ```
 
