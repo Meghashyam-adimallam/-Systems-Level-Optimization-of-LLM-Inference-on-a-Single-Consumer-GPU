@@ -290,8 +290,3 @@ For a one-page visual report with both charts and tables, open **`report/benchma
 - **No long-context** workloads (>1k tokens) in the reported experiments.
 - Results may vary under **extreme burst traffic** or different hardware.
 
----
-
-## 🤝 Contributors (summary)
-
-See the **Authors & Contributors** section above for the full breakdown. Both contributors collaborated equally on this project.
