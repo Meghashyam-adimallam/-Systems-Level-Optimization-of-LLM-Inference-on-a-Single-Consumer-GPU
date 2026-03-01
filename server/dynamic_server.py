@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="LLM Benchmarking — Dynamic", lifespan=lifespan)
+app = FastAPI(title="Systems-Level Optimization of LLM Inference on a Single Consumer GPU — Dynamic", lifespan=lifespan)
 
 
 @app.get("/")

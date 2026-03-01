@@ -67,7 +67,7 @@ def main():
         x = np.arange(n_configs)
         width = 0.25
         fig, axes = plt.subplots(2, 2, figsize=(12, 9))
-        fig.suptitle("LLM Benchmarking — Multiple loads (light / medium / heavy)", fontsize=12, fontweight="bold", y=1.02)
+        fig.suptitle("Systems-Level Optimization of LLM Inference on a Single Consumer GPU — Multiple loads (light / medium / heavy)", fontsize=12, fontweight="bold", y=1.02)
         colors = {"baseline": "#2d7d46", "batched": "#1a5fb4", "dynamic": "#c64600"}
         for i, (metric_key, title, ylabel) in enumerate([
             ("req_per_sec", "Throughput", "Requests / sec"),

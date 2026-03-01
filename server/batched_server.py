@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="LLM Benchmarking — Batched", lifespan=lifespan)
+app = FastAPI(title="Systems-Level Optimization of LLM Inference on a Single Consumer GPU — Batched", lifespan=lifespan)
 
 
 @app.get("/")
