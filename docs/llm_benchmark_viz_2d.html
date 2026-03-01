@@ -37,6 +37,15 @@
     .diff-item .pill.baseline { background: rgba(248,81,73,0.25); color: #f85149; }
     .diff-item .pill.batched { background: rgba(88,166,255,0.25); color: #58a6ff; }
     .diff-item .pill.dynamic { background: rgba(63,185,80,0.25); color: #3fb950; }
+    .stats-corners { position: relative; }
+    .stat-box { position: absolute; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.8rem; min-width: 100px; }
+    .stat-box .stat-label { color: #8b949e; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.2rem; }
+    .stat-box .stat-value { color: #3fb950; font-weight: 700; font-size: 1rem; }
+    .stat-box.tl { top: 3.5rem; left: 0.5rem; }
+    .stat-box.tr { top: 3.5rem; right: 0.5rem; }
+    .stat-box.bl { bottom: 3rem; left: 0.5rem; }
+    .stat-box.br { bottom: 3rem; right: 0.5rem; }
+    .stat-row { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; }
   </style>
 </head>
 <body>
@@ -56,6 +65,7 @@
     const DYNAMIC_WINDOW_MS = 400;
 
     const LOAD_SIZE_MAX = 50;
+    const TOKENS_PER_REQUEST = 64;
 
     function loadGeneratorEmitRate(loadSize, t) {
       const base = 0.2 + (loadSize / LOAD_SIZE_MAX) * 0.8;
@@ -75,6 +85,8 @@
       const nextId = useRef(1);
       const emitAccum = useRef(0);
       const lastTime = useRef(0);
+      const completedCount = useRef(0);
+      const startTime = useRef(0);
       const speedMult = [0.5, 1, 2][speed];
 
       useEffect(() => {
@@ -108,7 +120,7 @@
             let phase = b[idx].phase;
             if (phase === 'kv' && progress >= 1) { phase = 'gpu'; progress = 0; }
             else if (phase === 'gpu' && progress >= 1) { phase = 'result'; progress = 0; }
-            else if (phase === 'result' && progress >= 1) { b[idx].phase = 'done'; }
+            else if (phase === 'result' && progress >= 1) { b[idx].phase = 'done'; completedCount.current += 1; }
             if (b[idx].phase !== 'done') {
               b[idx].phase = phase; b[idx].progress = Math.min(1, progress); b[idx].x = xFor(phase, progress);
             }
@@ -186,6 +198,7 @@
           raf = requestAnimationFrame(tick);
         }
         lastTime.current = performance.now();
+        if (startTime.current === 0) startTime.current = performance.now();
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
       }, [running, loadSize, speed]);
@@ -256,10 +269,32 @@
             <span className="diff-item"><span className="pill batched">Batched</span> 4 together → large GPU</span>
             <span className="diff-item"><span className="pill dynamic">Dynamic</span> 1–4 by timing → GPU varies</span>
           </div>
-          <div className="viz-wrap">
+          <div className="viz-wrap stats-corners">
+            <div className="stat-box tl">
+              <div className="stat-label">Requests</div>
+              <div className="stat-row"><span style={{ color: '#8b949e' }}>Emitted</span><span className="stat-value">{nextId.current - 1}</span></div>
+              <div className="stat-row"><span style={{ color: '#3fb950' }}>Completed</span><span className="stat-value">{completedCount.current}</span></div>
+              <div className="stat-row"><span style={{ color: '#f85149' }}>In queue</span><span className="stat-value">{baselineDots.filter(d => d.phase === 'queue').length}</span></div>
+            </div>
+            <div className="stat-box tr">
+              <div className="stat-label">GPU Usage</div>
+              <div className="stat-row"><span style={{ color: '#f85149' }}>Baseline</span><span className="stat-value">{(gpuUsage(baselineDots, 'baseline') * 100).toFixed(0)}%</span></div>
+              <div className="stat-row"><span style={{ color: '#58a6ff' }}>Batched</span><span className="stat-value">{(gpuUsage(batchedDots, 'batched') * 100).toFixed(0)}%</span></div>
+              <div className="stat-row"><span style={{ color: '#3fb950' }}>Dynamic</span><span className="stat-value">{(gpuUsage(dynamicDots, 'dynamic') * 100).toFixed(0)}%</span></div>
+            </div>
+            <div className="stat-box bl">
+              <div className="stat-label">Tokens Generated</div>
+              <div className="stat-value">{completedCount.current * TOKENS_PER_REQUEST}</div>
+              <div className="stat-row"><span style={{ color: '#8b949e' }}>~{TOKENS_PER_REQUEST} per request</span></div>
+            </div>
+            <div className="stat-box br">
+              <div className="stat-label">Throughput</div>
+              <div className="stat-value">{(() => { const sec = startTime.current > 0 ? (performance.now() - startTime.current) / 1000 : 0; return sec > 0 && completedCount.current > 0 ? (completedCount.current / sec).toFixed(2) : '0.00'; })()}</div>
+              <div className="stat-row"><span style={{ color: '#8b949e' }}>req/s (est.)</span></div>
+            </div>
             <div className="controls">
               <button className="btn btn-start" onClick={() => setRunning(true)} disabled={running}>Start Simulation</button>
-              <button className="btn" style={{ background: '#21262d', color: '#e6edf3', border: '1px solid #30363d' }} onClick={() => { setRunning(false); setDots({ baseline: [], batched: [], dynamic: [] }); nextId.current = 1; emitAccum.current = 0; }}>Reset</button>
+              <button className="btn" style={{ background: '#21262d', color: '#e6edf3', border: '1px solid #30363d' }} onClick={() => { setRunning(false); setDots({ baseline: [], batched: [], dynamic: [] }); nextId.current = 1; emitAccum.current = 0; completedCount.current = 0; startTime.current = 0; }}>Reset</button>
               <label>Load Size (1–{LOAD_SIZE_MAX}): <span className="val">{loadSize}</span><input type="range" min={1} max={LOAD_SIZE_MAX} value={loadSize} onChange={e => setLoadSize(+e.target.value)} /></label>
               <div className="speed-group">
                 <span style={{ marginRight: 4 }}>Speed:</span>
