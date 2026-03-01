@@ -192,9 +192,9 @@ LLM_Benchmarking/
 
 ## 👀 See the difference (visualization)
 
-**[▶ View interactive visualization](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Meghashyam-adimallam/-Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU/main/docs/llm_benchmark_viz_2d.html)** — or open `docs/llm_benchmark_viz_2d.html` locally in a browser for an animated 2D comparison:
+**[Click the image below → opens interactive 2D visualization](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Meghashyam-adimallam/-Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU/main/docs/llm_benchmark_viz_2d.html)**
 
-![2D LLM benchmark visualization: Load Generator and three pipelines (Baseline, Batched, Dynamic)](docs/llm_benchmark_viz_2d.png)
+[![2D LLM benchmark: Load Generator + pipelines (Baseline, Batched, Dynamic)](docs/llm_benchmark_viz_2d.png)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Meghashyam-adimallam/-Systems-Level-Optimization-of-LLM-Inference-on-a-Single-Consumer-GPU/main/docs/llm_benchmark_viz_2d.html)
 
 - **Load Generator** (left) emits request dots; **three pipelines** (Baseline, Batched, Dynamic) show how each strategy processes them.
 - **Baseline:** 1 at a time → small GPU block. **Batched:** 4 per batch → large GPU block. **Dynamic:** 1–4 adaptive → GPU block varies.
